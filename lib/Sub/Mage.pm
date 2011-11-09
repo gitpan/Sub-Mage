@@ -2,14 +2,17 @@ package Sub::Mage;
 
 =head1 NAME
 
-Sub::Mage - Override and Restore subs on-the-fly, without magic.
+Sub::Mage - Override, Restore and manipulate subroutines on-the-fly, without magic.
 
 =head1 DESCRIPTION
 
 On the very rare occasion you may need to override a subroutine for any particular reason. This module will help you do that 
-with minimum fuss. Afterwards, when you're done, you can simply restore the subroutine back to its original state. 
+with minimal fuss. Afterwards, when you're done, you can simply restore the subroutine back to its original state. 
 Used on its own will override/restore a sub from the current script, but called from a class it will alter that classes subroutine. As long 
-as the current package has access to it, it may be altered.
+as the current package has access to it, it may be altered. 
+Sub::Mage now has the ability to manipulate subroutines by creating C<after> and C<before> modifier hooks, or create new subroutines on the go with 
+C<conjur>. New debugging functionality has been added also. With C<sub_alert> you can see when any subroutines (not Sub::Mage imported ones) are being 
+called.
 
 =head1 SYNOPSIS
 
@@ -63,8 +66,9 @@ Changing a class method, by example
 
 =cut
 
-$Sub::Mage::VERSION = '0.002';
+$Sub::Mage::VERSION = '0.003';
 $Sub::Mage::Subs = {};
+$Sub::Mage::Imports = [];
 $Sub::Mage::Debug = 0;
 
 use feature ();
@@ -83,11 +87,26 @@ sub import {
         }
     }
 
-    *{$pkg . '::override'} = \&override;
-    *{$pkg . '::restore'} = \&restore;
-    *{$pkg . '::after'} = \&after;
-    *{$pkg . '::before'} = \&before;
-    *{$pkg . '::conjur'} = \&conjur;
+    _import_def(
+        $pkg,
+        qw/
+            override
+            restore
+            after
+            before
+            conjur
+            sub_alert
+        /,
+    );
+}
+
+sub _import_def {
+    my ($pkg, @subs) = @_;
+
+    for (@subs) {
+        *{$pkg . "::$_"} = \&$_;
+        push @{$Sub::Mage::Imports}, $_;
+    }
 }
 
 sub override {
@@ -233,6 +252,20 @@ sub conjur {
     }
 }
 
+sub sub_alert {
+    my $pkg = shift;
+    my $module = __PACKAGE__;
+
+    for (keys %{$pkg . "::"}) {
+        my $sub = $_;
+
+        unless ($sub eq uc $sub) {
+            $pkg->before($sub => sub { print "[$module/Sub Alert] '$sub' called from $pkg\n"; })
+                unless grep { $_ eq $sub } @{$Sub::Mage::Imports};
+        }
+    }
+}
+
 sub _debug_on {
     $Sub::Mage::Debug = 1;
     _debug("Sub::Mage debugging ON");
@@ -321,6 +354,17 @@ using conjur.
 
         print "Hello, $name!\n";
     });
+
+=head2 sub_alert
+
+B<Very verbose>: Adds a before hook modifier to every subroutine in the package to let you know when a sub is being called. Great for debugging if you're not sure a method is being ran.
+
+    __PACKAGE__->sub_alert;
+
+    # define a normal sub
+    sub test { return "World"; }
+
+    say "Hello, " . test(); # prints Hello, World but also lets you know 'test' in 'package' was called.
 
 =head1 AUTHOR
 

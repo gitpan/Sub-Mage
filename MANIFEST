@@ -17,7 +17,9 @@ MANIFEST			This list of files
 META.yml
 README
 Sub-Mage-0.001.tar.gz
+Sub-Mage-0.002.tar.gz
 t/00-load.t
+t/01-subs.t
 t/manifest.t
 t/pod-coverage.t
 t/pod.t

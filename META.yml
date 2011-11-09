@@ -1,5 +1,5 @@
 ---
-abstract: 'Override and Restore subs on-the-fly, without magic.'
+abstract: 'Override, Restore and manipulate subroutines on-the-fly, without magic.'
 author:
   - 'Brad Haywood <brad@geeksware.net>'
   - 'Brad Haywood <brad@geeksware.net>'
@@ -22,4 +22,4 @@ no_index:
     - t
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.002
+version: 0.003
