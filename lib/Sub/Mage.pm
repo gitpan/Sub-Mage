@@ -66,7 +66,7 @@ Changing a class method, by example
 
 =cut
 
-$Sub::Mage::VERSION = '0.003';
+$Sub::Mage::VERSION = '0.004';
 $Sub::Mage::Subs = {};
 $Sub::Mage::Imports = [];
 $Sub::Mage::Debug = 0;
@@ -84,6 +84,9 @@ sub import {
             
             _debug_on()
                 if $_ eq ':Debug';
+            
+            _setup_class($pkg)
+                if $_ eq ':Class';
         }
     }
 
@@ -98,6 +101,12 @@ sub import {
             sub_alert
         /,
     );
+}
+
+sub _setup_class {
+    my $class = shift;
+
+    *{ "$class\::new" } = sub { return bless { }, $class };
 }
 
 sub _import_def {
@@ -291,7 +300,34 @@ or create hook modifiers then this will enable it for you. It can get verbose, s
     use Sub::Mage qw/:5.010 :Debug/;
 
     conjur 'asub' => sub { }; # notifies you with [debug] that a subroutine was conjured
-    
+
+Now with importing we can turn a perfectly normal package into a class, sort of. It saves you from creating C<sub new { ... }>
+
+    # MyApp.pm
+    package MyApp;
+
+    use Sub::Mage qw/:5.010 :Class/;
+
+    1;
+
+    # test.pl
+    my $foo = MyApp->new;
+
+    MyApp->conjur( name => sub {
+        my ($self, $name) = @_;
+
+        $self->{name} = $name;
+        say "Set name to $name";
+    });
+
+    MyApp->conjur( getName => sub { return shift->{name}; });
+
+    $foo->name('World');
+
+    say $foo->getName;
+
+Above we created a basically blank package, passed :Class to the Sub::Mage import method, then controlled the entire class from C<test.pl>.
+
 =head1 Spells
 
 =head2 override
