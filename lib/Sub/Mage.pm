@@ -63,17 +63,31 @@ Changing a class method, by example
 
 =cut
 
-$Sub::Mage::VERSION = '0.001';
+$Sub::Mage::VERSION = '0.002';
 $Sub::Mage::Subs = {};
+$Sub::Mage::Debug = 0;
+
+use feature ();
 
 sub import {
-    my ($class, $args) = @_;
+    my ($class, @args) = @_;
     my $pkg = caller;
+    
+    if (@args > 0) {
+        for (@args) {
+            feature->import( ':5.10' )
+                if $_ eq ':5.010';
+            
+            _debug_on()
+                if $_ eq ':Debug';
+        }
+    }
 
     *{$pkg . '::override'} = \&override;
     *{$pkg . '::restore'} = \&restore;
     *{$pkg . '::after'} = \&after;
     *{$pkg . '::before'} = \&before;
+    *{$pkg . '::conjur'} = \&conjur;
 }
 
 sub override {
@@ -86,10 +100,20 @@ sub override {
         ($name, $sub) = ($pkg, $name);
         $pkg = caller;
     }
-    
-    _add_to_subs("$pkg\:\:$name");
-    *$name = sub { $sub->(@_) };
-    *{$pkg . "::$name"} = \*$name;
+
+    my $warn = 0;
+    if (! $pkg->can($name)) {
+        warn "Cannot override a subroutine that doesn't exist";
+        $warn = 1;
+    }
+
+    if ($warn == 0) {
+        _debug("Override called for sub '$name' in package '$pkg'");
+ 
+        _add_to_subs("$pkg\:\:$name");
+        *$name = sub { $sub->(@_) };
+        *{$pkg . "::$name"} = \*$name;
+    }
 }
 
 sub _add_to_subs {
@@ -98,6 +122,7 @@ sub _add_to_subs {
     if (! exists $Sub::Mage::Subs->{$sub}) {
         $Sub::Mage::Subs->{$sub} = {};
         $Sub::Mage::Subs->{$sub} = \&{$sub};
+        _debug("$sub does not exist. Adding to Subs list\n");
     }
 }
 
@@ -115,11 +140,13 @@ sub restore {
     $sub = "$pkg\:\:$sub";
     
     if (! exists $Sub::Mage::Subs->{$sub}) {
+        _debug("Failed to restore '$sub' because it's not in the Subs list. Was it overriden, or modified by a hook?");
         warn "I have no recollection of '$sub'";
         return 0;
     }
 
     *{$sub} = $Sub::Mage::Subs->{$sub};
+    _debug("Restores sub $sub");
 }
 
 sub after {
@@ -148,6 +175,7 @@ sub after {
     
     _add_to_subs($full);
     *{$full} = \*$name;
+    _debug("Added after hook modified to '$name'");
 }
 
 sub before {
@@ -176,8 +204,61 @@ sub before {
 
     _add_to_subs($full);
     *{$full} = \*$name;
+    _debug("Added before hook modifier to $name");
 }
 
+sub conjur {
+    my ($pkg, $name, $sub) = @_;
+
+    if (scalar @_ > 2) {
+        ($pkg, $name, $sub) = @_;
+    }
+    else {
+        ($name, $sub) = ($pkg, $name);
+        $pkg = caller;
+    }
+
+    my $warn = 0;
+    if ($pkg->can($name)) {
+        warn "You can't conjur a subroutine that already exists. Did you mean 'override'?";
+        $warn = 1;
+    }
+    
+    if ($warn == 0) {
+        my $full = "$pkg\:\:$name";
+        *$name = sub { $sub->(@_); };
+
+        *{$full} = \*$name;
+        _debug("Conjured new subroutine '$name' in '$pkg'");
+    }
+}
+
+sub _debug_on {
+    $Sub::Mage::Debug = 1;
+    _debug("Sub::Mage debugging ON");
+}
+
+sub _debug {
+    print '[debug] ' . shift . "\n"
+        if $Sub::Mage::Debug == 1;
+}
+
+=head1 IMPORT
+
+When you C<use Sub::Mage> there are currently a couple of options you can pass to it. One is C<:5.010>. This will import the 5.010 feature.. this has nothing to do 
+with subs, but I like this module, so it's there. The other is C<:Debug>. If for some reason you want some kind of debugging going on when you override, restore, conjur 
+or create hook modifiers then this will enable it for you. It can get verbose, so use it only when you need to.
+
+    use Sub::Mage ':5.010';
+
+    say "It works!";
+
+    #--
+
+    use Sub::Mage qw/:5.010 :Debug/;
+
+    conjur 'asub' => sub { }; # notifies you with [debug] that a subroutine was conjured
+    
 =head1 Spells
 
 =head2 override
@@ -226,6 +307,20 @@ Very similar to C<after>, but calls the before subroutine, yes that's right, bef
     before 'bye' => sub { print "Good "; };
 
     bye(); # prints Good Bye!
+
+=head2 conjur
+
+"Conjurs" a subroutine into the current script or a class. By conjur I just mean create. It will not allow you to override a subroutine 
+using conjur.
+
+    conjur 'test' => sub { print "In test\n"; }
+    test;
+
+    Foo->conjur( hello => sub {
+        my ($self, $name) = @_;
+
+        print "Hello, $name!\n";
+    });
 
 =head1 AUTHOR
 
