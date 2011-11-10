@@ -66,7 +66,7 @@ Changing a class method, by example
 
 =cut
 
-$Sub::Mage::VERSION = '0.005';
+$Sub::Mage::VERSION = '0.006';
 $Sub::Mage::Subs = {};
 $Sub::Mage::Imports = [];
 $Sub::Mage::Debug = 0;
@@ -100,6 +100,7 @@ sub import {
             qw/
                 conjur
                 sub_alert
+                duplicate
             /,
         );
     }
@@ -113,6 +114,7 @@ sub import {
                 before
                 conjur
                 sub_alert
+                duplicate
             /,
         );
     }
@@ -290,6 +292,32 @@ sub sub_alert {
     }
 }
 
+sub duplicate {
+    my ($name, %opts) = @_;
+
+    my $from;
+    my $to;
+    foreach my $opt (keys %opts) {
+        $from = $opts{$opt}
+            if $opt eq 'from';
+        $to = $opts{$opt}
+            if $opt eq 'to';
+    }
+
+    if ((! $from || ! $to )) {
+        warn "duplicate(): 'from' and 'to' needed to cast this spell";
+        return ;
+    }
+
+    if (! $from->can($name)) {
+        warn "duplicate(): $from does not have the method '$name'";
+        return ;
+    }
+
+    *{$to . "::$name"} = \*{$from . "::$name"};
+}
+        
+
 sub _debug_on {
     $Sub::Mage::Debug = 1;
     _debug("Sub::Mage debugging ON");
@@ -416,6 +444,17 @@ B<Very verbose>: Adds a before hook modifier to every subroutine in the package 
     sub test { return "World"; }
 
     say "Hello, " . test(); # prints Hello, World but also lets you know 'test' in 'package' was called.
+
+=head2 duplicate
+
+Duplicates a subroutine from one class to another. Probably rarely used, but the feature is there if you need it.
+
+    use ThisPackage;
+    use ThatPackage;
+
+    duplicate 'subname' => ( from => 'ThisPackage', to => 'ThatPackage' );
+
+    ThatPackage->subname; # duplicate of ThisPackage->subname
 
 =head1 AUTHOR
 
