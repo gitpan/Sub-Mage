@@ -1,0 +1,71 @@
+=head1 NAME
+
+Sub::Mage::Spellbook - Spells and incantations for L<Sub::Mage>
+
+=head1 INCANTATIONS
+
+We'll start with incantations seems that they are summoned at the beginning when we C<use Sub::Mage>. 
+Generally they will be in the form of an array, as such:
+
+    use Sub::Mage qw/:5.010 :Debug :Moose/;
+
+The above is a perfectly good incantation. The first option C<:5.010> imports the 5.010 feature (so you can use "say" and "given"),  the second C<:Debug> turns on debugging, and the last one we used 
+C<:Moose> lets L<Sub::Mage> know that you're using L<Moose>, so don't import C<overide>, C<after> and C<before> as Moose already has these features. 
+Another handy incantation is C<:Class>. Please read below about B<telekinesis> to see how it works.
+
+=head2 Telekinesis
+
+This is the action of controlling a class from a different class or script. Sub::Mage makes this easy with its spells.
+
+First, let's create a blank package and turn it into our class. When using C<:Class> it removes the need to add C<sub new { ... }>.
+
+    package Spells;
+
+    use Sub::Mage qw/:Class/;
+
+    1;
+
+That's our whole class.. now, let's control it from C<merlin.pl>
+
+    use Spells;
+
+    my $spells = Spells->new;
+
+    Spells->conjur( fireball => sub {
+        my $self = shift;
+        
+        $self->{damage} = 5;
+    });
+
+    Spells->conjur( damage_of_fireball => sub {
+        return shift->{damage};
+    });
+
+    $spells->fireball;
+    print $spells->damage_of_fireball; # returns 5
+
+Notice how we didn't even need to load C<Sub::Mage> in C<merlin.pl>? This is because we used everything from the C<Spells> class. 
+We've created the subroutine C<fireball> but we want to let people create their own damage modifier and make it verbose..
+
+    Spells->override( fireball => sub {
+        my ($self, $val) = @_;
+    
+        $self->{damage} = $val;
+    });
+
+Oh, we forgot to make it verbose. Let's just tag it on the end...
+
+    Spells->after( fireball => sub {
+        my ($self, $val) = @_;
+        print "Damage set to $val\n";
+    });
+
+So now we call..
+
+    $spells->fireball(10);
+
+And see C<Damage set to 10>. And that's a basic B<Telekinesis> spell.
+
+=cut
+
+        

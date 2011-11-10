@@ -66,7 +66,7 @@ Changing a class method, by example
 
 =cut
 
-$Sub::Mage::VERSION = '0.004';
+$Sub::Mage::VERSION = '0.005';
 $Sub::Mage::Subs = {};
 $Sub::Mage::Imports = [];
 $Sub::Mage::Debug = 0;
@@ -77,6 +77,7 @@ sub import {
     my ($class, @args) = @_;
     my $pkg = caller;
     
+    my $moosed;
     if (@args > 0) {
         for (@args) {
             feature->import( ':5.10' )
@@ -87,20 +88,34 @@ sub import {
             
             _setup_class($pkg)
                 if $_ eq ':Class';
+            
+            $moosed = 1
+                if $_ eq ':Moose';
         }
     }
 
-    _import_def(
-        $pkg,
-        qw/
-            override
-            restore
-            after
-            before
-            conjur
-            sub_alert
-        /,
-    );
+    if ($moosed) {
+        _import_def(
+            $pkg,
+            qw/
+                conjur
+                sub_alert
+            /,
+        );
+    }
+    else {
+        _import_def(
+            $pkg,
+            qw/
+                override
+                restore
+                after
+                before
+                conjur
+                sub_alert
+            /,
+        );
+    }
 }
 
 sub _setup_class {
@@ -168,7 +183,7 @@ sub restore {
     $sub = "$pkg\:\:$sub";
     
     if (! exists $Sub::Mage::Subs->{$sub}) {
-        _debug("Failed to restore '$sub' because it's not in the Subs list. Was it overriden, or modified by a hook?");
+        _debug("Failed to restore '$sub' because it's not in the Subs list. Was it overriden or modified by a hook?");
         warn "I have no recollection of '$sub'";
         return 0;
     }
@@ -285,7 +300,7 @@ sub _debug {
         if $Sub::Mage::Debug == 1;
 }
 
-=head1 IMPORT
+=head1 INCANTATIONS
 
 When you C<use Sub::Mage> there are currently a couple of options you can pass to it. One is C<:5.010>. This will import the 5.010 feature.. this has nothing to do 
 with subs, but I like this module, so it's there. The other is C<:Debug>. If for some reason you want some kind of debugging going on when you override, restore, conjur 
@@ -328,7 +343,7 @@ Now with importing we can turn a perfectly normal package into a class, sort of.
 
 Above we created a basically blank package, passed :Class to the Sub::Mage import method, then controlled the entire class from C<test.pl>.
 
-=head1 Spells
+=head1 SPELLS
 
 =head2 override
 
