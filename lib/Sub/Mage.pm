@@ -66,9 +66,10 @@ Changing a class method, by example
 
 =cut
 
-$Sub::Mage::VERSION = '0.006';
+$Sub::Mage::VERSION = '0.007';
 $Sub::Mage::Subs = {};
 $Sub::Mage::Imports = [];
+$Sub::Mage::Classes = [];
 $Sub::Mage::Debug = 0;
 
 use feature ();
@@ -120,10 +121,44 @@ sub import {
     }
 }
 
+sub augment {
+    my (@classes) = @_;
+    my $pkg = caller();
+    
+    if ($pkg eq 'main') {
+        warn "Cannot augment main";
+        return ;
+    }
+
+    _augment_class( \@classes, $pkg );
+}
+
+sub _augment_class {
+    my ($mothers, $class) = @_;
+
+    foreach my $mother (@$mothers) {
+        # if class is unknown to us, import it (FIXME)
+        unless (grep { $_ eq $class } @$Sub::Mage::Classes) {
+            eval "use $mother";
+            warn "Could not load $mother: $@"
+                if $@;
+        
+            $mother->import;
+        }
+        push @$Sub::Mage::Classes, $class;
+    }
+
+    {
+        no strict 'refs';
+        @{"${class}::ISA"} = @$mothers;
+    }
+}
+
 sub _setup_class {
     my $class = shift;
 
     *{ "$class\::new" } = sub { return bless { }, $class };
+    _import_def ($class, qw/augment/);
 }
 
 sub _import_def {
@@ -370,6 +405,7 @@ Now with importing we can turn a perfectly normal package into a class, sort of.
     say $foo->getName;
 
 Above we created a basically blank package, passed :Class to the Sub::Mage import method, then controlled the entire class from C<test.pl>.
+As of 0.007, C<:Class> now offers B<augmentation> using C<augment> which inherits a specified class.
 
 =head1 SPELLS
 
@@ -455,6 +491,30 @@ Duplicates a subroutine from one class to another. Probably rarely used, but the
     duplicate 'subname' => ( from => 'ThisPackage', to => 'ThatPackage' );
 
     ThatPackage->subname; # duplicate of ThisPackage->subname
+
+=head2 augment
+
+To use C<augment> you need to have C<:Class> imported. Augment will extend the given class thereby inheriting it into 
+the current class.
+
+    package Spell;
+
+    sub lightning { }
+
+    1;
+
+    package Magic;
+
+    use Sub::Mage qw/:Class/;
+    augment 'Spell';
+
+    override 'lightning' => sub { say "Zappo!" };
+    Magic->lightning;
+
+    1;
+
+The above would not have worked if we had not have augmented 'Spell'. This is because when we 
+inheritted it, we also got access to its C<lightning> method.
 
 =head1 AUTHOR
 
