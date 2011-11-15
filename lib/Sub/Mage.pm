@@ -66,7 +66,7 @@ Changing a class method, by example
 
 =cut
 
-$Sub::Mage::VERSION = '0.009';
+$Sub::Mage::VERSION = '0.010';
 $Sub::Mage::Subs = {};
 $Sub::Mage::Imports = [];
 $Sub::Mage::Classes = [];
@@ -160,7 +160,7 @@ sub _setup_class {
     my $class = shift;
 
     *{ "$class\::new" } = sub { return bless { }, $class };
-    _import_def ($class, qw/augment/);
+    _import_def ($class, qw/augment accessor/);
 }
 
 sub _import_def {
@@ -397,6 +397,17 @@ sub have {
     }
 }
 
+sub accessor {
+    my ($name, $value) = @_;
+    my $pkg = caller;
+
+    *{$pkg . "::$name"} = sub {
+        my ($class, $val) = @_;
+        if ($val) { *{$pkg . "::$name"} = sub { return $val; }; return $val; }
+        else { return $value; }
+    };
+}
+
 sub _debug_on {
     $Sub::Mage::Debug = 1;
     _debug("Sub::Mage debugging ON");
@@ -407,7 +418,7 @@ sub _debug {
         if $Sub::Mage::Debug == 1;
 }
 
-=head1 INCANTATIONS
+=head1 IMPORTS
 
 When you C<use Sub::Mage> there are currently a couple of options you can pass to it. One is C<:5.010>. This will import the 5.010 feature.. this has nothing to do 
 with subs, but I like this module, so it's there. The other is C<:Debug>. If for some reason you want some kind of debugging going on when you override, restore, conjur 
@@ -451,7 +462,7 @@ Now with importing we can turn a perfectly normal package into a class, sort of.
 Above we created a basically blank package, passed :Class to the Sub::Mage import method, then controlled the entire class from C<test.pl>.
 As of 0.007, C<:Class> now offers B<augmentation> using C<augment> which inherits a specified class.
 
-=head1 SPELLS
+=head1 METHODS 
 
 =head2 override
 
@@ -637,6 +648,30 @@ Or you may wish for something really simply.
     Foo->have( 'spoon' => ( then => $success, or => 'There is no spoon') );
 
 This one will simply thrown a warning with C<warn> so to still execute any following code you may have.
+
+=head2 accessor
+
+Simply creates an accessor for the current class. You will need to first import C<:Class> when using Sub::Mage before you can use C<accessor>. When you create an 
+accessor it adds the subroutine for you with the specified default value. The parameter in the subroutine will cause its default value to change to whatever that is.
+
+    package FooClass;
+
+    use Sub::Mage qw/:Class/;
+
+    accessor 'name' => 'World'; # creates the subroutine 'name'
+
+    1;
+
+    package main;
+
+    use FooClass;
+
+    my $foo = FooClass->new;
+    print "Hello, " . $foo->name; # prints Hello, World
+
+    $foo->name('Foo');
+    
+    print "Seeya, " . $foo->name; # prints Seeya, Foo
 
 =head1 AUTHOR
 
