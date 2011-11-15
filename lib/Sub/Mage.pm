@@ -66,13 +66,11 @@ Changing a class method, by example
 
 =cut
 
-$Sub::Mage::VERSION = '0.010';
+$Sub::Mage::VERSION = '0.011';
 $Sub::Mage::Subs = {};
 $Sub::Mage::Imports = [];
 $Sub::Mage::Classes = [];
 $Sub::Mage::Debug = 0;
-
-use feature ();
 
 sub import {
     my ($class, @args) = @_;
@@ -81,7 +79,7 @@ sub import {
     my $moosed;
     if (@args > 0) {
         for (@args) {
-            feature->import( ':5.10' )
+            feature::feature->import( ':5.10' )
                 if $_ eq ':5.010';
             
             _debug_on()
@@ -102,6 +100,8 @@ sub import {
                 conjur
                 sub_alert
                 duplicate
+                exports
+                have
             /,
         );
     }
@@ -361,15 +361,22 @@ sub exports {
     my $into = [];
     foreach my $opt (keys %args) {
         if ($opt eq 'into') {
-            for my $gc (@{$args{into}}) {
-                push @$into, $gc;
+            if (ref($args{into}) eq 'ARRAY') {
+                for my $gc (@{$args{into}}) {
+                    push @$into, $gc;
+                }
             }
+            else { push @$into, $args{into}; }
         }
     }
     
     my $code = sub { $class->$name(@_); };
     if (scalar @$into > 0) {
         for my $c (@$into) {
+            if (! _class_exists($c)) {
+                warn "Can't export $name into $c\:: because class $c does not exist";
+                next;
+            } 
             *{$c . '::' . $name} = \&{$code};
         }
     }
@@ -416,6 +423,16 @@ sub _debug_on {
 sub _debug {
     print '[debug] ' . shift . "\n"
         if $Sub::Mage::Debug == 1;
+}
+
+sub _class_exists {
+    my $class = shift;
+    
+    # i hard a hard time finding out how to go about this
+    # this is all i could think of
+    # every class should at _least_ have BEGIN, so count the keys!
+    my $class = "$class\::";
+    return scalar(keys(%{$class}));
 }
 
 =head1 IMPORTS
@@ -581,7 +598,9 @@ Once you export the subroutine you can call it into the given package without re
     use Sub::Mage;
     
     exports 'boo' => ( into => [qw/ThisClass ThatClass/] );
+    export 'spoons' => ( into => 'MyClass' );
 
+    sub spoon { print "Spoons!\n"; }
     sub boo { print "boo!!!\n"; }
     sub test { print "A test\n"; }
 
@@ -647,7 +666,7 @@ Or you may wish for something really simply.
 
     Foo->have( 'spoon' => ( then => $success, or => 'There is no spoon') );
 
-This one will simply thrown a warning with C<warn> so to still execute any following code you may have.
+This one will simply throw a warning with C<warn> so to still execute any following code you may have.
 
 =head2 accessor
 
