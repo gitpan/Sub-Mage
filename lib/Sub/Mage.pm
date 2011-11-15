@@ -66,7 +66,7 @@ Changing a class method, by example
 
 =cut
 
-$Sub::Mage::VERSION = '0.008';
+$Sub::Mage::VERSION = '0.009';
 $Sub::Mage::Subs = {};
 $Sub::Mage::Imports = [];
 $Sub::Mage::Classes = [];
@@ -117,6 +117,7 @@ sub import {
                 sub_alert
                 duplicate
                 exports
+                have
             /,
         );
     }
@@ -375,6 +376,27 @@ sub exports {
     return;
 }
 
+sub have {
+    my ($class, $method, %args) = @_;
+
+    my $can = $class->can($method) ? 1 : 0;
+    my $then;
+    for $opt (keys %args) {
+        if ($opt eq 'then') {
+            if ($can) { $args{$opt}->($class, $method); }
+        }
+        if ($opt eq 'or') {
+            if (! $can) {
+                if (ref $args{$opt} eq 'CODE') {
+                    $args{$opt}->(@_);
+                    return 0;
+                }
+                else { warn $args{$opt}; }
+            }
+        }
+    }
+}
+
 sub _debug_on {
     $Sub::Mage::Debug = 1;
     _debug("Sub::Mage debugging ON");
@@ -558,6 +580,63 @@ Once you export the subroutine you can call it into the given package without re
 
     boo(); # instead of Foo->boo;
     test(); # this will fail because it was not exported
+
+=head2 have
+
+A pretty useless function, but it may be used to silently error, or create custom errors for failed subroutines. Similar to $class->can($method), but with some extra sugar.
+
+    package Foo;
+
+    use Sub::Mage;
+
+    sub test { }
+    
+    package MyApp;
+
+    use Sub::Mage qw/:5.010/;
+    
+    use Foo;
+    
+    my $success = sub {
+        my ($class, $name) = @_;
+      
+        say "$class\::$name checked out OK";  
+        after $class => sub {
+            say "Successfully ran $name in $class";
+        };
+    };
+
+    Foo->have( 'test' => ( then => $success ) );
+
+On success the above will run whatever is in C<then>. But what about errors? If this fails it will not do anything - sometimes you just want silent deaths, right? You can create custom 
+error handlers by using C<or>. This parameter may take a coderef or a string.
+
+    package Foo;
+    
+    use Sub::Mage;
+
+    sub knife { }
+    
+    package MyApp;
+
+    use Sub::Mage qw/:5.010/;
+
+    use Foo;
+
+    my $error = sub {
+        my ($class, $name) = @_;
+
+        say "Oh dear! $class failed because no method $name exists";
+        # do some other funky stuff if you wish
+    };
+
+    Foo->have( 'spoon' => ( then => $success, or => $error ) );
+
+Or you may wish for something really simply.
+
+    Foo->have( 'spoon' => ( then => $success, or => 'There is no spoon') );
+
+This one will simply thrown a warning with C<warn> so to still execute any following code you may have.
 
 =head1 AUTHOR
 
