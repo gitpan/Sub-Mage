@@ -66,7 +66,7 @@ Changing a class method, by example
 
 =cut
 
-$Sub::Mage::VERSION = '0.007';
+$Sub::Mage::VERSION = '0.008';
 $Sub::Mage::Subs = {};
 $Sub::Mage::Imports = [];
 $Sub::Mage::Classes = [];
@@ -116,6 +116,7 @@ sub import {
                 conjur
                 sub_alert
                 duplicate
+                exports
             /,
         );
     }
@@ -352,6 +353,27 @@ sub duplicate {
     *{$to . "::$name"} = \*{$from . "::$name"};
 }
         
+sub exports {
+    my ($name, %args) = @_;
+
+    my $class = caller;
+    my $into = [];
+    foreach my $opt (keys %args) {
+        if ($opt eq 'into') {
+            for my $gc (@{$args{into}}) {
+                push @$into, $gc;
+            }
+        }
+    }
+    
+    my $code = sub { $class->$name(@_); };
+    if (scalar @$into > 0) {
+        for my $c (@$into) {
+            *{$c . '::' . $name} = \&{$code};
+        }
+    }
+    return;
+}
 
 sub _debug_on {
     $Sub::Mage::Debug = 1;
@@ -515,6 +537,27 @@ the current class.
 
 The above would not have worked if we had not have augmented 'Spell'. This is because when we 
 inheritted it, we also got access to its C<lightning> method.
+
+=head2 exports
+
+Exporting subroutines is not generally needed or a good idea, so Sub::Mage will only allow you to export one subroutine at a time. 
+Once you export the subroutine you can call it into the given package without referencing the class of the subroutines package.
+
+    package Foo;
+    
+    use Sub::Mage;
+    
+    exports 'boo' => ( into => [qw/ThisClass ThatClass/] );
+
+    sub boo { print "boo!!!\n"; }
+    sub test { print "A test\n"; }
+
+    package ThisClass;
+
+    use Foo;
+
+    boo(); # instead of Foo->boo;
+    test(); # this will fail because it was not exported
 
 =head1 AUTHOR
 
