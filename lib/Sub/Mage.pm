@@ -2,7 +2,7 @@ package Sub::Mage;
 
 =head1 NAME
 
-Sub::Mage - Override, Restore and manipulate subroutines on-the-fly, without magic.
+Sub::Mage - Override, restore subroutines and add hook modifiers, with much more sugary goodness.
 
 =head1 DESCRIPTION
 
@@ -13,6 +13,7 @@ as the current package has access to it, it may be altered.
 Sub::Mage now has the ability to manipulate subroutines by creating C<after> and C<before> modifier hooks, or create new subroutines on the go with 
 C<conjur>. New debugging functionality has been added also. With C<sub_alert> you can see when any subroutines (not Sub::Mage imported ones) are being 
 called.
+Sub::Mage now boasts more functionality than I can fit here. Please read the pod for more info.
 
 =head1 SYNOPSIS
 
@@ -66,7 +67,7 @@ Changing a class method, by example
 
 =cut
 
-$Sub::Mage::VERSION = '0.011';
+$Sub::Mage::VERSION = '0.012';
 $Sub::Mage::Subs = {};
 $Sub::Mage::Imports = [];
 $Sub::Mage::Classes = [];
@@ -435,7 +436,7 @@ sub _class_exists {
     return scalar(keys(%{$class}));
 }
 
-=head1 IMPORTS
+=head1 IMPORT ATTRIBUTES
 
 When you C<use Sub::Mage> there are currently a couple of options you can pass to it. One is C<:5.010>. This will import the 5.010 feature.. this has nothing to do 
 with subs, but I like this module, so it's there. The other is C<:Debug>. If for some reason you want some kind of debugging going on when you override, restore, conjur 
@@ -477,7 +478,7 @@ Now with importing we can turn a perfectly normal package into a class, sort of.
     say $foo->getName;
 
 Above we created a basically blank package, passed :Class to the Sub::Mage import method, then controlled the entire class from C<test.pl>.
-As of 0.007, C<:Class> now offers B<augmentation> using C<augment> which inherits a specified class.
+As of 0.007, C<:Class> now offers B<augmentation> using C<augment> which inherits a specified class, similar to C<use base>
 
 =head1 METHODS 
 

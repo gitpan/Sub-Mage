@@ -1,23 +1,24 @@
 =head1 NAME
 
-Sub::Mage::Spellbook - Spells and incantations for L<Sub::Mage>
+Sub::Mage::Spellbook - Recipes for L<Sub::Mage>
 
-=head1 INCANTATIONS
+=head1 IMPORTS
 
-We'll start with incantations seems that they are summoned at the beginning when we C<use Sub::Mage>. 
+We'll start with import attributes seems that they are created at the beginning when we C<use Sub::Mage>. 
 Generally they will be in the form of an array, as such:
 
     use Sub::Mage qw/:5.010 :Debug :Moose/;
 
-The above is a perfectly good incantation. The first option C<:5.010> imports the 5.010 feature (so you can use "say" and "given"),  the second C<:Debug> turns on debugging, and the last one we used 
-C<:Moose> lets L<Sub::Mage> know that you're using L<Moose>, so don't import C<overide>, C<after> and C<before> as Moose already has these features. 
-Another handy incantation is C<:Class>. Please read below about B<telekinesis> to see how it works.
+The first option C<:5.010> imports the 5.010 feature (so you can use "say" and "given"),  the second C<:Debug> turns on debugging, and the last one we used 
+C<:Moose> lets L<Sub::Mage> know that you're using L<Moose>, so don't import C<overide>, C<after> and C<before> as Moose already has these features. And Moose is great. 
+Another handy import attribute is C<:Class>. Please read below about B<Controlling a Class remotely> to see how it works.
 
-=head2 Telekinesis
+=head2 Controlling a Class remotel
 
-This is the action of controlling a class from a different class or script. Sub::Mage makes this easy with its spells.
+Sub::Mage makes this easy with its array of methods.
 
-First, let's create a blank package and turn it into our class. When using C<:Class> it removes the need to add C<sub new { ... }>.
+First, let's create a blank package and turn it into our class. When using C<:Class> it removes the need to add C<sub new { ... }> and also imports some other 
+handy methods, like C<augment> and C<accessor>.
 
     package Spells;
 
@@ -31,12 +32,14 @@ That's our whole class.. now, let's control it from C<merlin.pl>
 
     my $spells = Spells->new;
 
+    # create a method called 'fireball' in Spells
     Spells->conjur( fireball => sub {
         my $self = shift;
         
         $self->{damage} = 5;
     });
 
+    # create an accessor method called 'damage_of_fireball'
     Spells->conjur( damage_of_fireball => sub {
         return shift->{damage};
     });
@@ -64,7 +67,7 @@ So now we call..
 
     $spells->fireball(10);
 
-And see C<Damage set to 10>. And that's a basic B<Telekinesis> spell.
+And see C<Damage set to 10>. And that's how you can control a blank class remotely. Useless, but interesting.
 
 =cut
 
