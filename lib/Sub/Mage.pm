@@ -67,7 +67,7 @@ Changing a class method, by example
 
 =cut
 
-$Sub::Mage::VERSION = '0.012';
+$Sub::Mage::VERSION = '0.013';
 $Sub::Mage::Subs = {};
 $Sub::Mage::Imports = [];
 $Sub::Mage::Classes = [];
@@ -119,6 +119,7 @@ sub import {
                 duplicate
                 exports
                 have
+                around
             /,
         );
     }
@@ -272,22 +273,75 @@ sub before {
         $pkg = caller;
     }
 
+    if (ref($name) eq 'ARRAY') {
+        for my $subname (@$name) {
+            $full = "$pkg\:\:$subname";
+            my $alter_sub;
+            my $new_code;
+            my $old_code;
+            die "Could not find $subname in the hierarchy for $pkg\n"
+                if ! $pkg->can($subname);
+
+            $old_code = \&{$full};
+            *$subname = sub {
+                $sub->(@_);
+                $old_code->(@_);
+            };
+
+            _add_to_subs($full);
+            *{$full} = \*$subname;
+            _debug("Added before hook modifier to $subname");
+        }
+    }
+    else {
+        $full = "$pkg\:\:$name";
+        my $alter_sub;
+        my $new_code;
+        my $old_code;
+        die "Could not find $name in the hierarchy for $pkg\n"
+            if ! $pkg->can($name);
+
+        $old_code = \&{$full};
+        *$name = sub {
+            $sub->(@_);
+            $old_code->(@_);
+        };
+
+        _add_to_subs($full);
+        *{$full} = \*$name;
+        _debug("Added before hook modifier to $name");
+    }
+}
+
+sub around {
+    my ($pkg, $name, $sub) = @_;
+
+    if (scalar @_ > 2) {
+        ($pkg, $name, $sub) = @_;
+    }
+    else {
+        ($name, $sub) = ($pkg, $name);
+        $pkg = caller;
+    }
+
     $full = "$pkg\:\:$name";
-    my $alter_sub;
-    my $new_code;
-    my $old_code;
     die "Could not find $name in the hierarchy for $pkg\n"
         if ! $pkg->can($name);
 
-    $old_code = \&{$full};
+    my $old_code = \&{$full};
     *$name = sub {
-        $sub->(@_);
-        $old_code->(@_);
+        $sub->($old_code, @_);
     };
-
+     
     _add_to_subs($full);
-    *{$full} = \*$name;
-    _debug("Added before hook modifier to $name");
+    *{$full} = \*$name;  
+}
+
+sub getscope {
+    my ($self) = @_;
+
+    if (defined $self) { return ref($self); }
+    else { return scalar caller(1); }
 }
 
 sub conjur {
@@ -528,6 +582,45 @@ Very similar to C<after>, but calls the before subroutine, yes that's right, bef
     before 'bye' => sub { print "Good "; };
 
     bye(); # prints Good Bye!
+
+Fancy calling C<before> on multiple subroutines? Sure. Just add them to an array.
+
+    sub like {
+        my ($self, $what) = @_;
+        
+        print "I like $what\n";
+    }
+    
+    sub dislike {
+        my ($self, $what) = @_;
+        
+        print "I dislike $what\n";
+    }
+
+    before [qw( like dislike )] => sub {
+        my ($self, $name) = @_;
+
+        print "I'm going to like or dislike $name\n";
+    };
+
+=head2 around
+
+Around gives the user a bit more control over the subroutine. When you create an around method the first argument will be the old method, the second is C<$self> and the third is any arguments passed to the original subroutine. In a away this allows you to control the flow of the entire subroutine.
+
+    sub greet {
+        my ($self, $name) = @_;
+
+        print "Hello, $name!\n";
+    }
+
+    # only call greet if any arguments were passed to Class->greet()
+    around 'greet' => sub {
+        my $method = shift;
+        my $self = shift;
+
+        $self->$method(@_)
+            if @_;
+    };
 
 =head2 conjur
 
