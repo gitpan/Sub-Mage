@@ -67,7 +67,7 @@ Changing a class method, by example
 
 =cut
 
-$Sub::Mage::VERSION = '0.013';
+$Sub::Mage::VERSION = '0.014';
 $Sub::Mage::Subs = {};
 $Sub::Mage::Imports = [];
 $Sub::Mage::Classes = [];
@@ -162,7 +162,7 @@ sub _setup_class {
     my $class = shift;
 
     *{ "$class\::new" } = sub { return bless { }, $class };
-    _import_def ($class, qw/augment accessor/);
+    _import_def ($class, qw/augment accessor chainable/);
 }
 
 sub _import_def {
@@ -469,6 +469,36 @@ sub accessor {
         else { return $value; }
     };
 }
+
+sub chainable {
+    my ($method, %args) = @_;
+    my $pkg = getscope();
+
+    if (! $pkg->can($method)) {
+        warn "Cannot chain subroutine that doesn't exist";
+        return ;
+    }
+    
+    foreach my $var (keys %args) {
+        if ($var eq 'class') {
+            
+            if ($args{$var} eq $pkg) {
+                $pkg->after( $method => sub {
+                    my $self = shift;
+                    
+                    return $self;
+                });
+            }
+            else {
+                $pkg->after( $method => sub {
+                    my $self = shift;
+
+                    return bless $self, $args{$var};
+                });
+            }
+        }
+    }
+} 
 
 sub _debug_on {
     $Sub::Mage::Debug = 1;
@@ -785,6 +815,42 @@ accessor it adds the subroutine for you with the specified default value. The pa
     $foo->name('Foo');
     
     print "Seeya, " . $foo->name; # prints Seeya, Foo
+
+=head2 chainable
+
+Another C<:Class> only method is C<chainable>. It doesn't really do anything you can't do yourself, but I find it helps to keep a visual of your chains at the top of your code so you can see in plain sight 
+where they are leading you. Let's look at an example.
+
+    # test.pl
+
+    use Greeter;
+    
+    my $foo = Greeter->new;
+    print "Hello, " . $foo->greet('World')->hello;
+
+    # Greeter.pm
+    package Greeter;
+
+    use Greet::Class;
+    use Sub::Mage qw/:Class/;
+
+    chainable 'greet' => ( class => 'Greet::Class' );
+
+    sub greet {
+        my ($self, $name) = @_;
+        $self->{_name} = $name;
+    }
+
+    # Greet/Class.pm
+    package Greet;
+    
+    sub hello {
+        my $self = shift;
+
+        return $self->{_name};
+    }
+
+Out of all that we get 'Hello, World'. It may seem pointless, but I like a clean presentation plus keeping track of where methods point to, and I find using C<chainable> helps me with this.
 
 =head1 AUTHOR
 
