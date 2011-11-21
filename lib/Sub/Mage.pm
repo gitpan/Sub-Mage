@@ -67,7 +67,7 @@ Changing a class method, by example
 
 =cut
 
-$Sub::Mage::VERSION = '0.015';
+$Sub::Mage::VERSION = '0.016';
 $Sub::Mage::Subs = {};
 $Sub::Mage::Imports = [];
 $Sub::Mage::Classes = [];
@@ -103,6 +103,7 @@ sub import {
                 duplicate
                 exports
                 have
+                drop_sub
             /,
         );
     }
@@ -120,9 +121,23 @@ sub import {
                 exports
                 have
                 around
+                drop_sub
             /,
         );
     }
+}
+
+sub drop_sub {
+    my ($class, $sub);
+    if (@_ < 2) {
+        $sub = shift;
+        $class = getscope();
+    }
+    else {
+        ($class, $sub) = @_;
+    }
+    $class = \%{"$class\::"};
+    delete $class->{$sub};
 }
 
 sub augment {
@@ -580,6 +595,23 @@ Overriding a subroutine inherits everything the old one had, including C<$self> 
         # do stuff
     });
 
+=head2 drop_sub
+
+Deletes an entire subroutine from the current package, or a remote one. Please be aware this is non-reversable. There is no recycle bin for subroutines unfortunately. Not yet, anyway.
+
+    package MyBin;
+
+    sub test { print "Huzzah!" }
+    
+    __PACKAGE__->test; # prints Huzzah!
+    
+    drop_sub 'test'
+
+    __PACKAGE__->test; # fails, because there's no subroutine named 'test'
+
+    use AnotherPackage;
+    AnotherPackage->drop_sub('test'); # removes the 'test' method from 'AnotherPackage'
+
 =head2 restore
 
 Restores a subroutine to its original state.
@@ -816,6 +848,7 @@ accessor it adds the subroutine for you with the specified default value. The pa
 
 Another C<:Class> only method is C<chainable>. It doesn't really do anything you can't do yourself, but I find it helps to keep a visual of your chains at the top of your code so you can see in plain sight 
 where they are leading you. Let's look at an example.
+As of 0.015 you can now bless a different reference other than C<$self>. Whatever you bless will be C<$self->{option}>.
 
     # test.pl
 
@@ -844,6 +877,18 @@ where they are leading you. Let's look at an example.
         my $self = shift;
 
         return $self->{_name};
+    }
+
+If you don't want to bless the entire C<$self>, use C<bless>.
+
+    chainable 'greet' => ( bless => '_source', class => 'Greet::Class' );
+
+    sub greet {
+        my $self = shift;
+
+        $self->{_source} = {
+            _name => $self->{_name},
+        };
     }
 
 Out of all that we get 'Hello, World'. It may seem pointless, but I like a clean presentation plus keeping track of where methods point to, and I find using C<chainable> helps me with this.

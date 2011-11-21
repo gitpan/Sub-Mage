@@ -2,6 +2,9 @@ Revision history for Sub-Mage
 
 I apologize for not updating this. From 0.14 I will try to remember :)
 
+0.016   21/Nov/2011
+        Updated the pod to reflect new chainable instructions, and added 'drop_sub' method.
+
 0.015   21/Nov/2011
         Altered the 'chainable' method. Only return $self was getting a bit annoying when I actually wanted to bless something like $self-{_this}.
         Now you can add an extra parameter called 'bless'.
