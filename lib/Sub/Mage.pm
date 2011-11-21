@@ -67,7 +67,7 @@ Changing a class method, by example
 
 =cut
 
-$Sub::Mage::VERSION = '0.014';
+$Sub::Mage::VERSION = '0.015';
 $Sub::Mage::Subs = {};
 $Sub::Mage::Imports = [];
 $Sub::Mage::Classes = [];
@@ -127,7 +127,7 @@ sub import {
 
 sub augment {
     my (@classes) = @_;
-    my $pkg = caller();
+    my $pkg = getscope();
     
     if ($pkg eq 'main') {
         warn "Cannot augment main";
@@ -142,7 +142,7 @@ sub _augment_class {
 
     foreach my $mother (@$mothers) {
         # if class is unknown to us, import it (FIXME)
-        unless (grep { $_ eq $class } @$Sub::Mage::Classes) {
+        unless (grep { $_ eq $mother } @$Sub::Mage::Classes) {
             eval "use $mother";
             warn "Could not load $mother: $@"
                 if $@;
@@ -473,7 +473,8 @@ sub accessor {
 sub chainable {
     my ($method, %args) = @_;
     my $pkg = getscope();
-
+    my $bless;
+    my $class;
     if (! $pkg->can($method)) {
         warn "Cannot chain subroutine that doesn't exist";
         return ;
@@ -481,23 +482,18 @@ sub chainable {
     
     foreach my $var (keys %args) {
         if ($var eq 'class') {
-            
-            if ($args{$var} eq $pkg) {
-                $pkg->after( $method => sub {
-                    my $self = shift;
-                    
-                    return $self;
-                });
-            }
-            else {
-                $pkg->after( $method => sub {
-                    my $self = shift;
-
-                    return bless $self, $args{$var};
-                });
-            }
+            $class = $args{$var};
+        }    
+        if ($var eq 'bless') {
+            $bless = $args{$var};
         }
     }
+
+    $pkg->after( $method => sub {
+        my $self = shift;
+        if (! $bless) { return bless $self, $class; }
+        else { return bless $self->{$bless}, $class; }
+    });
 } 
 
 sub _debug_on {

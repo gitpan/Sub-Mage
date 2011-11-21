@@ -1,5 +1,17 @@
 Revision history for Sub-Mage
 
-0.01    Date/time
+I apologize for not updating this. From 0.14 I will try to remember :)
+
+0.015   21/Nov/2011
+        Altered the 'chainable' method. Only return $self was getting a bit annoying when I actually wanted to bless something like $self-{_this}.
+        Now you can add an extra parameter called 'bless'.
+        # chainable 'method' => ( class => 'BlessTo::ThisClass', bless => '_this' );
+        The above will return something similar to "return bless $self->{_this_}, 'BlessTo::ThisCLass'"
+        If you ommit the 'bless' it will use just $self.
+
+        I discovered a bug in 'augment' that was only allowing one augmentation. This has been fixed.
+
+
+0.01    
         First version, released on an unsuspecting world.
 

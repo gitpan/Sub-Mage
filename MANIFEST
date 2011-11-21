@@ -23,6 +23,7 @@ Sub-Mage-0.003.tar.gz
 Sub-Mage-0.004.tar.gz
 Sub-Mage-0.009.tar.gz
 Sub-Mage-0.013.tar.gz
+Sub-Mage-0.015.tar.gz
 t/00-load.t
 t/01-subs.t
 t/manifest.t
