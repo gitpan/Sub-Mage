@@ -13,7 +13,7 @@ The first option C<:5.010> imports the 5.010 feature (so you can use "say" and "
 C<:Moose> lets L<Sub::Mage> know that you're using L<Moose>, so don't import C<overide>, C<after> and C<before> as Moose already has these features. And Moose is great. 
 Another handy import attribute is C<:Class>. Please read below about B<Controlling a Class remotely> to see how it works.
 
-=head2 Controlling a Class remotel
+=head2 Controlling a Class remotely
 
 Sub::Mage makes this easy with its array of methods.
 
@@ -69,6 +69,70 @@ So now we call..
 
 And see C<Damage set to 10>. And that's how you can control a blank class remotely. Useless, but interesting.
 
-=cut
+=head1 TIPS
 
-        
+=head2 Not just for subroutines
+
+While L<Sub::Mage> was created to manage subroutines, it has had some extra functionality added to it. You can use it as a very small OOP framework.. very small. This is not to 
+replace Moo, Mo, Mouse, Moose, etc, etc.. However, if you're using Sub::Mage anyway and need something lightweight, it may just do what you're looking for.
+
+Let's take a look at what you get when you import C<:Class>
+
+B<accessor>
+
+Accessor can be used to create, you guessed it, accessors. These accessors are readable and writable methods which means you can alter the value of it down the track if you wish.
+
+B<augment>
+
+An awful name, to which I regret. Augment is similar to C<use base>. You can also add multiple modules into your augmentation.
+
+    augment qw/
+        My::Cool::Module
+        I::Need::This::One
+        And::This::One
+    /;
+
+B<chainable>
+
+Simply adds a C<return bless $self, 'Into::Package'> to the end of the given subroutine. You can now bless a different C<$self> key now, too. ie: C<$self->{_key}
+
+The above methods can help writing a class fairly easy, and neat. C<chainable> may seem like more typing, but you get the bonus of having all of your chains at the top of your code as reference. This may not 
+be handy for everyone, but I sure like it.
+
+B<Writing a class>
+
+Let's create a simple module.
+
+    package MyModule;
+    
+    use Sub::Mage qw/:Class/;
+
+    accessor 'x' => 7;
+    
+    1;
+
+If you weren't to use Sub::Mage you would need to add C<new> and create subroutine called C<x> that could return a value, but also take an argument that would change that default value to return next time.
+Now let's use the module. Sub::Mage modules can be used the same as any other, but let's inherit it.
+
+    package MyApp;
+
+    use Sub::Mage qw/:Class/;
+    augment 'MyModule';
+
+    my $foo = MyModule->new;
+    print $foo->x;          # prints 7
+    __PACKAGE__->x(5);      # augmenting it allows us to call it from __PACKAGE__ or $self
+    print __PACKAGE__->x;   # prints 5
+
+    # now throw in some classic Sub::Mage
+    MyModule->after(sub {
+        my $self = shift;
+
+        print "X is done!\n";
+    });
+
+    __PACKAGE__->x; # prints X is done!    
+
+Sub::Mage will try to allow you to do pretty much anything you can think of. So as you can see, altering subroutines is just the surface to what it offers.
+
+=cut

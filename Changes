@@ -2,6 +2,15 @@ Revision history for Sub-Mage
 
 I apologize for not updating this. From 0.14 I will try to remember :)
 
+0.018   02/Dec/2011
+        I doubt I will be updating Sub::Mage anymore, sorry. It has been taken over by Goose. It's basically Sub::Mage, but without the silly method names, and some 
+        extra sugar for those with a sweet tooth ;-)
+        There have been no changes in this release - it's merely to update the documentation and let you know it will no longer be maintained in place of Goose.
+
+0.017   23/Nov/2011
+        Minor adjustment to the POD
+        Added 'extends' for those of you who feel silly typing 'augment'. Myself included. Chances are if you need 'extends' you'll probably want Mo(o|u)se anyway ;-)
+
 0.016   21/Nov/2011
         Updated the pod to reflect new chainable instructions, and added 'drop_sub' method.
 

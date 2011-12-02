@@ -6,6 +6,10 @@ Sub::Mage - Override, restore subroutines and add hook modifiers, with much more
 
 =head1 DESCRIPTION
 
+B<PLEASE NOTE> that Sub::Mage will no longer be updated. I've started developing L<Goose> which is the bones of Sub::Mage but with extra sugar for those of you with a sweet tooth, and 
+without the silly method names which I chose unfortunately after playing as a Mage in a game...
+L<Goose> will still work the same as Sub::Mage, so barely any of the syntax will change.
+
 On the very rare occasion you may need to override a subroutine for any particular reason. This module will help you do that 
 with minimal fuss. Afterwards, when you're done, you can simply restore the subroutine back to its original state. 
 Used on its own will override/restore a sub from the current script, but called from a class it will alter that classes subroutine. As long 
@@ -67,7 +71,7 @@ Changing a class method, by example
 
 =cut
 
-$Sub::Mage::VERSION = '0.016';
+$Sub::Mage::VERSION = '0.018';
 $Sub::Mage::Subs = {};
 $Sub::Mage::Imports = [];
 $Sub::Mage::Classes = [];
@@ -152,6 +156,18 @@ sub augment {
     _augment_class( \@classes, $pkg );
 }
 
+sub extends {
+    my (@classes) = @_;
+    my $pkg = getscope();
+
+    if ($pkg eq 'main') {
+        warn "Cannot augment main";
+        return ;
+    }
+
+    _augment_class( \@classes, $pkg );
+}
+
 sub _augment_class {
     my ($mothers, $class) = @_;
 
@@ -177,7 +193,7 @@ sub _setup_class {
     my $class = shift;
 
     *{ "$class\::new" } = sub { return bless { }, $class };
-    _import_def ($class, qw/augment accessor chainable/);
+    _import_def ($class, qw/augment extends accessor chainable/);
 }
 
 sub _import_def {
