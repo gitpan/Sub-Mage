@@ -1,5 +1,5 @@
 ---
-abstract: 'Override, Restore and manipulate subroutines on-the-fly, without magic.'
+abstract: 'Multi-Use utility for manipulating subroutines, classes and more.'
 author:
   - 'Brad Haywood <brad@geeksware.net>'
   - 'Brad Haywood <brad@geeksware.net>'
@@ -22,4 +22,4 @@ no_index:
     - t
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.006
+version: 0.019

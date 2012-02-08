@@ -1,6 +1,8 @@
 Revision history for Sub-Mage
 
-I apologize for not updating this. From 0.14 I will try to remember :)
+0.019   08/02/2012
+        Resurrected. I've taken the best from Goose and put it into Sub::Mage. I liked the idea of having the :Class stuff optional. This allows you to use the likes of other OOP frameworks without this module getting in your way!
+        Sub::Mage has been cleaned up a lot. Some new methods have been added from Goose (Check the POD for a list of methods). 
 
 0.018   02/Dec/2011
         I doubt I will be updating Sub::Mage anymore, sorry. It has been taken over by Goose. It's basically Sub::Mage, but without the silly method names, and some 

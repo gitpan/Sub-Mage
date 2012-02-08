@@ -2,22 +2,13 @@ package Sub::Mage;
 
 =head1 NAME
 
-Sub::Mage - Override, restore subroutines and add hook modifiers, with much more sugary goodness.
+Sub::Mage - Multi-Use utility for manipulating subroutines, classes and more.
 
 =head1 DESCRIPTION
 
-B<PLEASE NOTE> that Sub::Mage will no longer be updated. I've started developing L<Goose> which is the bones of Sub::Mage but with extra sugar for those of you with a sweet tooth, and 
-without the silly method names which I chose unfortunately after playing as a Mage in a game...
-L<Goose> will still work the same as Sub::Mage, so barely any of the syntax will change.
-
-On the very rare occasion you may need to override a subroutine for any particular reason. This module will help you do that 
-with minimal fuss. Afterwards, when you're done, you can simply restore the subroutine back to its original state. 
-Used on its own will override/restore a sub from the current script, but called from a class it will alter that classes subroutine. As long 
-as the current package has access to it, it may be altered. 
-Sub::Mage now has the ability to manipulate subroutines by creating C<after> and C<before> modifier hooks, or create new subroutines on the go with 
-C<conjur>. New debugging functionality has been added also. With C<sub_alert> you can see when any subroutines (not Sub::Mage imported ones) are being 
-called.
-Sub::Mage now boasts more functionality than I can fit here. Please read the pod for more info.
+What this module attempts to do is make a developers life easier by allowing them to manage and manipulate subroutines and modules. You can override a subroutine, then 
+restore it as it was originally, create after, before and around hook modifiers, delete subroutines, or even tag every subroutine in a class to let you know when each one 
+is being run, which is great for debugging.
 
 =head1 SYNOPSIS
 
@@ -42,8 +33,6 @@ Changing a class method, by example
     # Foo.pm
 
     use Sub::Mage;
-
-    sub new { my $self = {}; return bless $self, __PACKAGE__; }
 
     sub hello {
         my $self = shift;
@@ -71,7 +60,7 @@ Changing a class method, by example
 
 =cut
 
-$Sub::Mage::VERSION = '0.018';
+our $VERSION = '0.019';
 $Sub::Mage::Subs = {};
 $Sub::Mage::Imports = [];
 $Sub::Mage::Classes = [];
@@ -80,58 +69,52 @@ $Sub::Mage::Debug = 0;
 sub import {
     my ($class, @args) = @_;
     my $pkg = caller;
-    
-    my $moosed;
+
+    warnings->import();
+    strict->import(); 
+    my $moosed = 1;
+    my $wantmoose;
     if (@args > 0) {
         for (@args) {
-            feature::feature->import( ':5.10' )
-                if $_ eq ':5.010';
+            if ($_ eq ':5.010') {
+                require feature;
+                feature->import( ':5.10' )
+            } 
             
             _debug_on()
                 if $_ eq ':Debug';
             
-            _setup_class($pkg)
+            _setup_moosed($pkg)
                 if $_ eq ':Class';
-            
-            $moosed = 1
-                if $_ eq ':Moose';
+
         }
     }
 
-    if ($moosed) {
-        _import_def(
-            $pkg,
-            qw/
-                conjur
-                sub_alert
-                duplicate
-                exports
-                have
-                drop_sub
-            /,
-        );
-    }
-    else {
-        _import_def(
-            $pkg,
-            qw/
-                override
-                restore
-                after
-                before
-                conjur
-                sub_alert
-                duplicate
-                exports
-                have
-                around
-                drop_sub
-            /,
-        );
-    }
+    _import_def(
+        $pkg,
+        undef,
+        qw/
+            override
+            restore
+            after
+            before
+            create
+            sub_alert
+            clone
+            exports
+            have
+            around
+            withdraw
+            sub_run
+            tag
+            constructor
+            destructor
+            sublist
+        /,
+    );
 }
 
-sub drop_sub {
+sub withdraw {
     my ($class, $sub);
     if (@_ < 2) {
         $sub = shift;
@@ -147,28 +130,16 @@ sub drop_sub {
 sub augment {
     my (@classes) = @_;
     my $pkg = getscope();
-    
-    if ($pkg eq 'main') {
-        warn "Cannot augment main";
-        return ;
-    }
-
-    _augment_class( \@classes, $pkg );
-}
-
-sub extends {
-    my (@classes) = @_;
-    my $pkg = getscope();
 
     if ($pkg eq 'main') {
         warn "Cannot augment main";
         return ;
     }
 
-    _augment_class( \@classes, $pkg );
+    _extend_class( \@classes, $pkg );
 }
 
-sub _augment_class {
+sub _extend_class {
     my ($mothers, $class) = @_;
 
     foreach my $mother (@$mothers) {
@@ -189,19 +160,33 @@ sub _augment_class {
     }
 }
 
-sub _setup_class {
+sub _setup_moosed {
     my $class = shift;
 
-    *{ "$class\::new" } = sub { return bless { }, $class };
-    _import_def ($class, qw/augment extends accessor chainable/);
+    *{ "$class\::new" } = sub {
+        my ($self, %args) = @_;
+        if (%args) {    
+            foreach my $arg (keys %args) {
+                __PACKAGE__->_remote_has($class, $arg, $args{$arg});
+            }
+        }
+        return bless { }, $class
+     };
+    _import_def ($class, undef, qw/augment accessor has chainable/);
 }
 
 sub _import_def {
-    my ($pkg, @subs) = @_;
-
-    for (@subs) {
-        *{$pkg . "::$_"} = \&$_;
-        push @{$Sub::Mage::Imports}, $_;
+    my ($pkg, $from, @subs) = @_;
+    if ($from) {
+        for (@subs) {
+            *{$pkg . "::$_"} = \&{"$from\::$_"};
+        }
+    }
+    else { 
+        for (@subs) {
+            *{$pkg . "::$_"} = \&$_;
+            push @{$Sub::Mage::Imports}, $_;
+        }
     }
 }
 
@@ -239,6 +224,18 @@ sub _add_to_subs {
         $Sub::Mage::Subs->{$sub} = \&{$sub};
         _debug("$sub does not exist. Adding to Subs list\n");
     }
+}
+
+sub constructor {
+    my $sub = shift;
+    my $pkg = getscope();
+    *{"$pkg\::import"} = $sub;
+}
+
+sub destructor {
+    my $sub = shift;
+    my $pkg = getscope();
+    *{"$pkg\::DESTROY"} = $sub;
 }
 
 sub restore {
@@ -375,7 +372,7 @@ sub getscope {
     else { return scalar caller(1); }
 }
 
-sub conjur {
+sub create {
     my ($pkg, $name, $sub) = @_;
 
     if (scalar @_ > 2) {
@@ -388,7 +385,7 @@ sub conjur {
 
     my $warn = 0;
     if ($pkg->can($name)) {
-        warn "You can't conjur a subroutine that already exists. Did you mean 'override'?";
+        warn "You can't create a subroutine that already exists. Did you mean 'override'?";
         $warn = 1;
     }
     
@@ -397,7 +394,7 @@ sub conjur {
         *$name = sub { $sub->(@_); };
 
         *{$full} = \*$name;
-        _debug("Conjured new subroutine '$name' in '$pkg'");
+        _debug("Created new subroutine '$name' in '$pkg'");
     }
 }
 
@@ -415,7 +412,7 @@ sub sub_alert {
     }
 }
 
-sub duplicate {
+sub clone {
     my ($name, %opts) = @_;
 
     my $from;
@@ -428,12 +425,12 @@ sub duplicate {
     }
 
     if ((! $from || ! $to )) {
-        warn "duplicate(): 'from' and 'to' needed to cast this spell";
+        warn "clone(): 'from' and 'to' needed to clone a subroutine";
         return ;
     }
 
     if (! $from->can($name)) {
-        warn "duplicate(): $from does not have the method '$name'";
+        warn "clone(): $from does not have the method '$name'";
         return ;
     }
 
@@ -463,7 +460,7 @@ sub exports {
                 warn "Can't export $name into $c\:: because class $c does not exist";
                 next;
             } 
-            *{$c . '::' . $name} = \&{$code};
+            *{"$c\::$name"} = \*{"$class\::$name"};
         }
     }
     return;
@@ -490,6 +487,56 @@ sub have {
     }
 }
 
+sub has {
+    my ($name, %args) = @_;
+    my $pkg = getscope();
+    my $rtype;
+    my $default;
+    foreach my $key (keys %args) {
+        $rtype = $args{is}
+            if $key eq 'is';
+        $default = $args{default}
+            if $key eq 'default';
+    }
+    if ($rtype eq 'ro') {
+        if (! $default) {
+            warn "Redundant null static accessor '$name'";
+        }
+        *{$pkg . "::$name"} = sub {
+            my ($class, $val) = @_;
+            if ($val) {
+                warn "Cannot alter a Read-Only accessor";
+                return ;
+            }
+            return $default||0;
+        };
+    }
+    else {
+        *{$pkg . "::$name"} = sub {
+            my ($class, $val) = @_;
+            if ($val) {
+                *{$pkg . "::$name"} = sub { return $val; }; return $val;
+            }
+            else {
+                return $default||0;
+            }
+        };
+    }
+}
+
+sub _remote_has {
+    my ($class, $pkg, $name, $default) = @_;
+    *{$pkg . "::$name"} = sub {
+        my ($class, $val) = @_;
+        if ($val) {
+            *{$pkg . "::$name"} = sub { return $val; }; return $val;
+        }
+        else {
+            return $default||0;
+        }
+    };
+}        
+
 sub accessor {
     my ($name, $value) = @_;
     my $pkg = caller;
@@ -500,6 +547,43 @@ sub accessor {
         else { return $value; }
     };
 }
+
+sub tag {
+    my ($pkg, $name, $message) = @_;
+
+    if (scalar @_ > 2) {
+        ($pkg, $name, $message) = @_;
+    }
+    else {
+        ($name, $message) = ($pkg, $name);
+        $pkg = getscope();
+    }
+
+    if (ref($name) eq 'ARRAY') {
+        for my $sub (@$name) {
+            
+            if (! $pkg->can($sub)) {
+                warn "Cannot tag a subroutine that doesn't exist";
+            }
+            else {
+                $pkg->before($sub => sub {
+                        print $message . " ($sub)\n";
+                    }
+                );
+            }
+        }
+    }
+    else {
+        if (! $pkg->can($name)) {
+            warn "Cannot tag a subroutine that doesn't exist";
+        }
+        else {
+            $pkg->before($name => sub {
+                print $message . "\n";
+            });
+        }
+    }
+}    
 
 sub chainable {
     my ($method, %args) = @_;
@@ -527,13 +611,24 @@ sub chainable {
     });
 } 
 
+sub sub_run {
+    my ($class,$subs, $methods) = @_;
+    
+    my $name;
+    my $orig;
+    for my $sub (@$subs) {
+        *{"$class\::$sub"}->($class, @$methods);
+    }
+}
+
 sub _debug_on {
     $Sub::Mage::Debug = 1;
     _debug("Sub::Mage debugging ON");
 }
 
 sub _debug {
-    print '[debug] ' . shift . "\n"
+    my $msg = shift;
+    print "[debug] $msg\n"
         if $Sub::Mage::Debug == 1;
 }
 
@@ -543,14 +638,26 @@ sub _class_exists {
     # i hard a hard time finding out how to go about this
     # this is all i could think of
     # every class should at _least_ have BEGIN, so count the keys!
-    my $class = "$class\::";
+    $class = "$class\::";
     return scalar(keys(%{$class}));
+}
+
+sub sublist {
+    my $pkg = caller(0);
+    my @subs;
+    for (keys %{$pkg . "::"}) {
+        my $sub = $_;
+        push @subs, $sub
+            unless substr($sub, -2) eq '::' or grep { $_ eq $sub } @{$Sub::Mage::Imports};
+    }
+
+    return @subs;
 }
 
 =head1 IMPORT ATTRIBUTES
 
 When you C<use Sub::Mage> there are currently a couple of options you can pass to it. One is C<:5.010>. This will import the 5.010 feature.. this has nothing to do 
-with subs, but I like this module, so it's there. The other is C<:Debug>. If for some reason you want some kind of debugging going on when you override, restore, conjur 
+with subs, but I like this module, so it's there. The other is C<:Debug>. If for some reason you want some kind of debugging going on when you override, restore, create 
 or create hook modifiers then this will enable it for you. It can get verbose, so use it only when you need to.
 
     use Sub::Mage ':5.010';
@@ -561,35 +668,7 @@ or create hook modifiers then this will enable it for you. It can get verbose, s
 
     use Sub::Mage qw/:5.010 :Debug/;
 
-    conjur 'asub' => sub { }; # notifies you with [debug] that a subroutine was conjured
-
-Now with importing we can turn a perfectly normal package into a class, sort of. It saves you from creating C<sub new { ... }>
-
-    # MyApp.pm
-    package MyApp;
-
-    use Sub::Mage qw/:5.010 :Class/;
-
-    1;
-
-    # test.pl
-    my $foo = MyApp->new;
-
-    MyApp->conjur( name => sub {
-        my ($self, $name) = @_;
-
-        $self->{name} = $name;
-        say "Set name to $name";
-    });
-
-    MyApp->conjur( getName => sub { return shift->{name}; });
-
-    $foo->name('World');
-
-    say $foo->getName;
-
-Above we created a basically blank package, passed :Class to the Sub::Mage import method, then controlled the entire class from C<test.pl>.
-As of 0.007, C<:Class> now offers B<augmentation> using C<augment> which inherits a specified class, similar to C<use base>
+    create 'this_sub' => sub { }; # notifies you with [debug] that a subroutine was createed
 
 =head1 METHODS 
 
@@ -611,7 +690,7 @@ Overriding a subroutine inherits everything the old one had, including C<$self> 
         # do stuff
     });
 
-=head2 drop_sub
+=head2 withdraw
 
 Deletes an entire subroutine from the current package, or a remote one. Please be aware this is non-reversable. There is no recycle bin for subroutines unfortunately. Not yet, anyway.
 
@@ -621,12 +700,12 @@ Deletes an entire subroutine from the current package, or a remote one. Please b
     
     __PACKAGE__->test; # prints Huzzah!
     
-    drop_sub 'test'
+    withdraw 'test'
 
     __PACKAGE__->test; # fails, because there's no subroutine named 'test'
 
     use AnotherPackage;
-    AnotherPackage->drop_sub('test'); # removes the 'test' method from 'AnotherPackage'
+    AnotherPackage->withdraw('test'); # removes the 'test' method from 'AnotherPackage'
 
 =head2 restore
 
@@ -696,15 +775,14 @@ Around gives the user a bit more control over the subroutine. When you create an
             if @_;
     };
 
-=head2 conjur
+=head2 create
 
-"Conjurs" a subroutine into the current script or a class. By conjur I just mean create. It will not allow you to override a subroutine 
-using conjur.
+Creates a new subroutine into the current script or a class. It will not allow you to override a subroutine.
 
-    conjur 'test' => sub { print "In test\n"; }
+    create 'test' => sub { print "In test\n"; }
     test;
 
-    Foo->conjur( hello => sub {
+    Foo->create( hello => sub {
         my ($self, $name) = @_;
 
         print "Hello, $name!\n";
@@ -721,40 +799,40 @@ B<Very verbose>: Adds a before hook modifier to every subroutine in the package 
 
     say "Hello, " . test(); # prints Hello, World but also lets you know 'test' in 'package' was called.
 
-=head2 duplicate
+=head2 clone
 
-Duplicates a subroutine from one class to another. Probably rarely used, but the feature is there if you need it.
+Clones a subroutine from one class to another. Probably rarely used, but the feature is there if you need it.
 
     use ThisPackage;
     use ThatPackage;
 
-    duplicate 'subname' => ( from => 'ThisPackage', to => 'ThatPackage' );
+    clone 'subname' => ( from => 'ThisPackage', to => 'ThatPackage' );
 
     ThatPackage->subname; # duplicate of ThisPackage->subname
 
 =head2 augment
 
-To use C<augment> you need to have C<:Class> imported. Augment will extend the given class thereby inheriting it into 
+To use C<augment> you need to have C<:Class> imported. This will extend the given class thereby inheriting it into 
 the current class.
 
-    package Spell;
+    package Foo;
 
-    sub lightning { }
-
-    1;
-
-    package Magic;
-
-    use Sub::Mage qw/:Class/;
-    augment 'Spell';
-
-    override 'lightning' => sub { say "Zappo!" };
-    Magic->lightning;
+    sub baz { }
 
     1;
 
-The above would not have worked if we had not have augmented 'Spell'. This is because when we 
-inheritted it, we also got access to its C<lightning> method.
+    package Fooness;
+
+    use Sub::Mage ':Class';
+    augment 'Foo';
+
+    override 'baz' => sub { say "Hello!" };
+    Foo->baz;
+
+    1;
+
+The above would not have worked if we had not have extended 'Foo'. This is because when we 
+inheritted it, we also got access to its C<baz> method.
 
 =head2 exports
 
@@ -766,9 +844,9 @@ Once you export the subroutine you can call it into the given package without re
     use Sub::Mage;
     
     exports 'boo' => ( into => [qw/ThisClass ThatClass/] );
-    export 'spoons' => ( into => 'MyClass' );
+    exports 'spoons' => ( into => 'MyClass' );
 
-    sub spoon { print "Spoons!\n"; }
+    sub spoons { print "Spoons!\n"; }
     sub boo { print "boo!!!\n"; }
     sub test { print "A test\n"; }
 
@@ -907,7 +985,112 @@ If you don't want to bless the entire C<$self>, use C<bless>.
         };
     }
 
-Out of all that we get 'Hello, World'. It may seem pointless, but I like a clean presentation plus keeping track of where methods point to, and I find using C<chainable> helps me with this.
+=head2 has
+
+Create a more advanced accessor similar to Moose (but not as cool). It currently supports C<is> and C<default>. Don't forget to import C<:Class>
+
+    package Foo;
+
+    use Sub::Mage ':Class';
+
+    has name => ( is => 'rw' );
+    has x => ( is => 'ro', default => 7 );
+    print __PACKAGE__->x; # 7
+    __PACKAGE__->x(5); # BAD! It's Read-Only!!
+    __PACKAGE__->name('World'); # set and return 'World'
+    
+=head2 sub_run
+
+Runs multiple subroutines in a class, with arguments if necessary. This function takes two arrayrefs, the first being the subroutines you want to run, and the last is 
+the arguments to pass to each subroutine.
+
+    # MyApp.pm
+    package MyApp;
+    use Sub::Mage;
+
+    sub greet {
+        my ($self, $name) = @_;
+        print "Hello, $name!\n";
+    }
+
+    sub bye {
+        my ($self, $name, $where) = @_;
+        print "Bye, $name. I'm going $where\n";
+    }
+
+    # run.pl
+    use MyApp;
+    MyApp->sub_run(
+        [qw/greet bye/],
+        [qw/World home/]
+    );
+
+    # Hello, World!
+    # Bye, World. I'm going home
+
+=head2 tag
+
+Same sort of principle as C<sub_alert> but a little more flexible. You can "tag" a subroutine, or multiple subroutines using an arrayref and give them a custom message when ran.
+If you group multiple subs they will have the same message.
+Great for debugging.
+
+    use Sub::Mage;
+    
+    tag 'test' => 'Test was run!'
+
+    sub test { print "World"; }
+    test; # outputs 'Test was run!' then 'World'
+
+You can call it from a remote package, too.
+
+    # Foo.pm
+    package Foo;
+    
+    use Sub::Mage;
+    
+    sub hello { print "hi"; }
+    sub bye   { print "goodbye"; }
+
+    # goose.pl
+    
+    use Foo;
+
+    Foo->tag( [qw(hello goodbye)], 'Tagged subroutines called' );
+
+    Foo->hello;
+    Foo->goodbye;
+
+If you tag multiple subroutines, to avoid confusion Sub::Mage will output the name of the subroutine in brackets at the end of the message.
+
+=head2 constructor
+
+Basically just C<sub import>. I wanted to keep the initialisation of a module and the destruction of it same-ish.
+
+    constructor sub {
+        my ($class, $args) = @_;
+        print "$class has loaded\n";
+    };
+    
+=head2 destructor
+
+Same as constructor, but is run when the module has finished.
+
+    destructor sub {
+        my $self = shift;
+        print "Module finished: $self->{some_var}\n";
+    };
+
+=head2 sublist
+
+Fetches an array of available subroutines in the current package.
+
+    foreach my $sub (sublist) {
+        print "Running $sub\n";
+        eval $sub;
+    }
+
+    my @subs = sublist;
+    print "Found " . scalar(@subs) . " subroutines\n";
 
 =head1 AUTHOR
 
