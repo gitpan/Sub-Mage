@@ -21,5 +21,6 @@ t/01-hooks.t
 t/02-accessors.t
 t/03-sub_run.t
 t/manifest.t
+t/MyTest.pm
 t/pod-coverage.t
 t/pod.t

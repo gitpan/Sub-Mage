@@ -1,5 +1,8 @@
 Revision history for Sub-Mage
 
+0.020   28/03/2012
+        Cleaned up some old code and more importantly fixed a nasty bug in the accessors. Augment has been renamed to extends, for obvious reasons.
+
 0.019   08/02/2012
         Resurrected. I've taken the best from Goose and put it into Sub::Mage. I liked the idea of having the :Class stuff optional. This allows you to use the likes of other OOP frameworks without this module getting in your way!
         Sub::Mage has been cleaned up a lot. Some new methods have been added from Goose (Check the POD for a list of methods). 

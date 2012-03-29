@@ -18,13 +18,13 @@ is being run, which is great for debugging.
 
     sub greet { print "Hello, World!"; }
 
-    greet; # prints Hello, World!
+    greet(); # prints Hello, World!
 
     override 'greet' => sub {
         print "Goodbye, World!";
     };
 
-    greet; # now prints Goodbye, World!
+    greet(); # now prints Goodbye, World!
 
     restore 'greet'; # restores it back to its original state
 
@@ -60,7 +60,7 @@ Changing a class method, by example
 
 =cut
 
-our $VERSION = '0.019';
+our $VERSION = '0.020';
 $Sub::Mage::Subs = {};
 $Sub::Mage::Imports = [];
 $Sub::Mage::Classes = [];
@@ -84,7 +84,7 @@ sub import {
             _debug_on()
                 if $_ eq ':Debug';
             
-            _setup_moosed($pkg)
+            _setup_moosed()
                 if $_ eq ':Class';
 
         }
@@ -127,12 +127,12 @@ sub withdraw {
     delete $class->{$sub};
 }
 
-sub augment {
+sub extends {
     my (@classes) = @_;
     my $pkg = getscope();
 
     if ($pkg eq 'main') {
-        warn "Cannot augment main";
+        warn "Cannot extends main";
         return ;
     }
 
@@ -161,18 +161,21 @@ sub _extend_class {
 }
 
 sub _setup_moosed {
-    my $class = shift;
+    my $class = caller(1); 
 
     *{ "$class\::new" } = sub {
         my ($self, %args) = @_;
-        if (%args) {    
+        my $a = { _used => {} };
+        if (%args) {
             foreach my $arg (keys %args) {
-                __PACKAGE__->_remote_has($class, $arg, $args{$arg});
+                $a->{$arg} = $args{$arg};
+                $a->{_used}->{$arg} = 1;
             }
         }
-        return bless { }, $class
+        return bless $a, $class;
      };
-    _import_def ($class, undef, qw/augment accessor has chainable/);
+    
+    _import_def ($class, undef, qw/extends accessor has chainable/);
 }
 
 sub _import_def {
@@ -490,35 +493,34 @@ sub have {
 sub has {
     my ($name, %args) = @_;
     my $pkg = getscope();
-    my $rtype;
-    my $default;
-    foreach my $key (keys %args) {
-        $rtype = $args{is}
-            if $key eq 'is';
-        $default = $args{default}
-            if $key eq 'default';
-    }
+    my $rtype   = delete $args{is}||"";
+    my $default = delete $args{default}||"";
+
     if ($rtype eq 'ro') {
         if (! $default) {
             warn "Redundant null static accessor '$name'";
         }
         *{$pkg . "::$name"} = sub {
-            my ($class, $val) = @_;
-            if ($val) {
+            my ($self, $val) = @_;
+            if (@_ == 2) {
                 warn "Cannot alter a Read-Only accessor";
                 return ;
             }
-            return $default||0;
+            return $self->{$name}||"";
         };
     }
     else {
         *{$pkg . "::$name"} = sub {
-            my ($class, $val) = @_;
-            if ($val) {
-                *{$pkg . "::$name"} = sub { return $val; }; return $val;
+            my ($self, $val) = @_;
+            if ($default && ! $self->{_used}->{$name}) {
+                $self->{$name} = $default;
+                $self->{_used}->{$name} = 1;
+            }
+            if (@_ == 2) {
+                $self->{$name} = $val;
             }
             else {
-                return $default||0;
+                return $self->{$name}||"";
             }
         };
     }
@@ -810,9 +812,9 @@ Clones a subroutine from one class to another. Probably rarely used, but the fea
 
     ThatPackage->subname; # duplicate of ThisPackage->subname
 
-=head2 augment
+=head2 extends
 
-To use C<augment> you need to have C<:Class> imported. This will extend the given class thereby inheriting it into 
+To use C<extends> you need to have C<:Class> imported. This will extend the given class thereby inheriting it into 
 the current class.
 
     package Foo;
@@ -824,7 +826,7 @@ the current class.
     package Fooness;
 
     use Sub::Mage ':Class';
-    augment 'Foo';
+    extends 'Foo';
 
     override 'baz' => sub { say "Hello!" };
     Foo->baz;

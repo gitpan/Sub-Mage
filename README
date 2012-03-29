@@ -17,13 +17,13 @@ SYNOPSIS
 
         sub greet { print "Hello, World!"; }
 
-        greet; # prints Hello, World!
+        greet(); # prints Hello, World!
 
         override 'greet' => sub {
             print "Goodbye, World!";
         };
 
-        greet; # now prints Goodbye, World!
+        greet(); # now prints Goodbye, World!
 
         restore 'greet'; # restores it back to its original state
 
@@ -220,8 +220,8 @@ METHODS
 
         ThatPackage->subname; # duplicate of ThisPackage->subname
 
-  augment
-    To use "augment" you need to have ":Class" imported. This will extend
+  extends
+    To use "extends" you need to have ":Class" imported. This will extend
     the given class thereby inheriting it into the current class.
 
         package Foo;
@@ -233,7 +233,7 @@ METHODS
         package Fooness;
 
         use Sub::Mage ':Class';
-        augment 'Foo';
+        extends 'Foo';
 
         override 'baz' => sub { say "Hello!" };
         Foo->baz;

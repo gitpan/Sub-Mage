@@ -1,12 +1,14 @@
 #!perl
-
 package MyTest;
 use Test::More;
-
-BEGIN { use_ok 'Sub::Mage', ':Class' }
+use FindBin;
+use lib "$FindBin::Bin";
+use MyTest;
 can_ok 'MyTest' => 'has';
-has 'x' => ( is => 'ro', default => 7 );
-is x(), 7; 
+my $ob = MyTest->new;
+is $ob->x, 7 => 'Returned a value of 7 from MyClass->x';
+$ob->x( 'World' );
+is $ob->x, 'World' => 'Updated MyClass->x to World';
 
 done_testing;
 
