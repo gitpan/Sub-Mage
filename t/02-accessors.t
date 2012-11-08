@@ -1,5 +1,4 @@
 #!perl
-package MyTest;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin";

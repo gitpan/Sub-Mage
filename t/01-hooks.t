@@ -6,7 +6,7 @@ plan tests => 4;
 
 my $CLASS = __PACKAGE__;
 
-use_ok 'Sub::Mage';
+use_ok 'Sub::Mage', ':Debug';
 
 can_ok 'Sub::Mage' => qw/
     override

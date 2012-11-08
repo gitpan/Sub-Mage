@@ -9,26 +9,25 @@ Sub::Mage - Multi-Use utility for manipulating subroutines, classes and more.
 What this module attempts to do is make a developers life easier by allowing them to manage and manipulate subroutines and modules. You can override a subroutine, then 
 restore it as it was originally, create after, before and around hook modifiers, delete subroutines, or even tag every subroutine in a class to let you know when each one 
 is being run, which is great for debugging.
+Unfortunately, thanks to late-night RPGs, a lot of coffee, and an over-active imagination, the namespace Sub::Mage was chosen. Sorry.
 
 =head1 SYNOPSIS
 
-    # Single file
+    # Simple usage
 
     use Sub::Mage;
 
     sub greet { print "Hello, World!"; }
-
-    greet(); # prints Hello, World!
+    greet();            # prints Hello, World!
 
     override 'greet' => sub {
         print "Goodbye, World!";
     };
 
-    greet(); # now prints Goodbye, World!
+    greet();            # now prints Goodbye, World!
+    restore 'greet';    # restores it back to its original state
 
-    restore 'greet'; # restores it back to its original state
-
-Changing a class method, by example
+Changing a class method (Remote control), by example
 
     # Foo.pm
 
@@ -60,40 +59,31 @@ Changing a class method, by example
 
 =cut
 
-our $VERSION = '0.020';
-$Sub::Mage::Subs = {};
+use Class::LOP;
+
+our $VERSION = '0.030';
+$Sub::Mage::Subs    = {};
 $Sub::Mage::Imports = [];
 $Sub::Mage::Classes = [];
-$Sub::Mage::Debug = 0;
+$Sub::Mage::Debug   = 0;
 
 sub import {
     my ($class, @args) = @_;
     my $pkg = caller;
-
-    warnings->import();
-    strict->import(); 
-    my $moosed = 1;
-    my $wantmoose;
+ 
     if (@args > 0) {
         for (@args) {
-            if ($_ eq ':5.010') {
-                require feature;
-                feature->import( ':5.10' )
-            } 
-            
             _debug_on()
                 if $_ eq ':Debug';
             
             _setup_moosed()
                 if $_ eq ':Class';
-
         }
     }
 
-    _import_def(
-        $pkg,
-        undef,
-        qw/
+    Class::LOP->init(__PACKAGE__)
+        ->warnings_strict
+        ->import_methods($pkg, qw/
             override
             restore
             after
@@ -128,69 +118,23 @@ sub withdraw {
 }
 
 sub extends {
-    my (@classes) = @_;
-    my $pkg = getscope();
-
-    if ($pkg eq 'main') {
-        warn "Cannot extends main";
-        return ;
-    }
-
-    _extend_class( \@classes, $pkg );
-}
-
-sub _extend_class {
-    my ($mothers, $class) = @_;
-
-    foreach my $mother (@$mothers) {
-        # if class is unknown to us, import it (FIXME)
-        unless (grep { $_ eq $mother } @$Sub::Mage::Classes) {
-            eval "use $mother";
-            warn "Could not load $mother: $@"
-                if $@;
-        
-            $mother->import;
-        }
-        push @$Sub::Mage::Classes, $class;
-    }
-
-    {
-        no strict 'refs';
-        @{"${class}::ISA"} = @$mothers;
-    }
+    Class::LOP->init(getscope())
+        ->extend_class(@_);
 }
 
 sub _setup_moosed {
     my $class = caller(1); 
 
-    *{ "$class\::new" } = sub {
-        my ($self, %args) = @_;
-        my $a = { _used => {} };
-        if (%args) {
-            foreach my $arg (keys %args) {
-                $a->{$arg} = $args{$arg};
-                $a->{_used}->{$arg} = 1;
-            }
-        }
-        return bless $a, $class;
-     };
-    
-    _import_def ($class, undef, qw/extends accessor has chainable/);
-}
+    Class::LOP->init(__PACKAGE__)
+        ->import_methods($class, qw/
+            extends
+            chainable
+            accessor
+        /);
 
-sub _import_def {
-    my ($pkg, $from, @subs) = @_;
-    if ($from) {
-        for (@subs) {
-            *{$pkg . "::$_"} = \&{"$from\::$_"};
-        }
-    }
-    else { 
-        for (@subs) {
-            *{$pkg . "::$_"} = \&$_;
-            push @{$Sub::Mage::Imports}, $_;
-        }
-    }
+    Class::LOP->init($class)
+        ->create_constructor
+        ->have_accessors('has');
 }
 
 sub override {
@@ -203,20 +147,9 @@ sub override {
         ($name, $sub) = ($pkg, $name);
         $pkg = caller;
     }
-
-    my $warn = 0;
-    if (! $pkg->can($name)) {
-        warn "Cannot override a subroutine that doesn't exist";
-        $warn = 1;
-    }
-
-    if ($warn == 0) {
-        _debug("Override called for sub '$name' in package '$pkg'");
- 
-        _add_to_subs("$pkg\:\:$name");
-        *$name = sub { $sub->(@_) };
-        *{$pkg . "::$name"} = \*$name;
-    }
+    my $full = "${pkg}::${name}";
+    _add_to_subs($full);
+    Class::LOP->init($pkg)->override_method($name, $sub);
 }
 
 sub _add_to_subs {
@@ -229,13 +162,13 @@ sub _add_to_subs {
     }
 }
 
-sub constructor {
+sub constructor(&) {
     my $sub = shift;
     my $pkg = getscope();
     *{"$pkg\::import"} = $sub;
 }
 
-sub destructor {
+sub destructor(&) {
     my $sub = shift;
     my $pkg = getscope();
     *{"$pkg\::DESTROY"} = $sub;
@@ -253,7 +186,7 @@ sub restore {
     }
 
     $sub = "$pkg\:\:$sub";
-    
+
     if (! exists $Sub::Mage::Subs->{$sub}) {
         _debug("Failed to restore '$sub' because it's not in the Subs list. Was it overriden or modified by a hook?");
         warn "I have no recollection of '$sub'";
@@ -275,21 +208,14 @@ sub after {
         $pkg = caller;
     }
 
-    $full = "$pkg\:\:$name";
-    my $alter_sub;
-    my $new_code;
-    my $old_code;
-    die "Could not find $name in the hierarchy for $pkg\n"
-        if ! $pkg->can($name);
-
-    $old_code = \&{$full};
-    *$name = sub {
-        $old_code->(@_);
-        $sub->(@_);
-    };
-    
+    my $full = "${pkg}::${name}";
     _add_to_subs($full);
-    *{$full} = \*$name;
+    Class::LOP->init($pkg)->add_hook(
+        type    => 'after',
+        name    => $name,
+        method  => $sub,
+    );
+
     _debug("Added after hook modified to '$name'");
 }
 
@@ -304,44 +230,15 @@ sub before {
         $pkg = caller;
     }
 
-    if (ref($name) eq 'ARRAY') {
-        for my $subname (@$name) {
-            $full = "$pkg\:\:$subname";
-            my $alter_sub;
-            my $new_code;
-            my $old_code;
-            die "Could not find $subname in the hierarchy for $pkg\n"
-                if ! $pkg->can($subname);
+    my $full = "${pkg}::${name}";
+    _add_to_subs($full);
+    Class::LOP->init($pkg)->add_hook(
+        type    => 'before',
+        name    => $name,
+        method  => $sub,
+    );
 
-            $old_code = \&{$full};
-            *$subname = sub {
-                $sub->(@_);
-                $old_code->(@_);
-            };
-
-            _add_to_subs($full);
-            *{$full} = \*$subname;
-            _debug("Added before hook modifier to $subname");
-        }
-    }
-    else {
-        $full = "$pkg\:\:$name";
-        my $alter_sub;
-        my $new_code;
-        my $old_code;
-        die "Could not find $name in the hierarchy for $pkg\n"
-            if ! $pkg->can($name);
-
-        $old_code = \&{$full};
-        *$name = sub {
-            $sub->(@_);
-            $old_code->(@_);
-        };
-
-        _add_to_subs($full);
-        *{$full} = \*$name;
-        _debug("Added before hook modifier to $name");
-    }
+    _debug("Added before hook modifier to $name");
 }
 
 sub around {
@@ -355,17 +252,13 @@ sub around {
         $pkg = caller;
     }
 
-    $full = "$pkg\:\:$name";
-    die "Could not find $name in the hierarchy for $pkg\n"
-        if ! $pkg->can($name);
-
-    my $old_code = \&{$full};
-    *$name = sub {
-        $sub->($old_code, @_);
-    };
-     
+    my $full = "${pkg}::${name}";
     _add_to_subs($full);
-    *{$full} = \*$name;  
+    Class::LOP->init($pkg)->add_hook(
+        type    => 'around',
+        name    => $name,
+        method  => $sub,
+    );
 }
 
 sub getscope {
@@ -386,17 +279,7 @@ sub create {
         $pkg = caller;
     }
 
-    my $warn = 0;
-    if ($pkg->can($name)) {
-        warn "You can't create a subroutine that already exists. Did you mean 'override'?";
-        $warn = 1;
-    }
-    
-    if ($warn == 0) {
-        my $full = "$pkg\:\:$name";
-        *$name = sub { $sub->(@_); };
-
-        *{$full} = \*$name;
+    if (Class::LOP->init($pkg)->create_method($name, $sub)) {
         _debug("Created new subroutine '$name' in '$pkg'");
     }
 }
@@ -437,7 +320,8 @@ sub clone {
         return ;
     }
 
-    *{$to . "::$name"} = \*{$from . "::$name"};
+    Class::LOP->init($from)
+        ->import_methods($to, $name);
 }
         
 sub exports {
@@ -489,55 +373,6 @@ sub have {
         }
     }
 }
-
-sub has {
-    my ($name, %args) = @_;
-    my $pkg = getscope();
-    my $rtype   = delete $args{is}||"";
-    my $default = delete $args{default}||"";
-
-    if ($rtype eq 'ro') {
-        if (! $default) {
-            warn "Redundant null static accessor '$name'";
-        }
-        *{$pkg . "::$name"} = sub {
-            my ($self, $val) = @_;
-            if (@_ == 2) {
-                warn "Cannot alter a Read-Only accessor";
-                return ;
-            }
-            return $self->{$name}||"";
-        };
-    }
-    else {
-        *{$pkg . "::$name"} = sub {
-            my ($self, $val) = @_;
-            if ($default && ! $self->{_used}->{$name}) {
-                $self->{$name} = $default;
-                $self->{_used}->{$name} = 1;
-            }
-            if (@_ == 2) {
-                $self->{$name} = $val;
-            }
-            else {
-                return $self->{$name}||"";
-            }
-        };
-    }
-}
-
-sub _remote_has {
-    my ($class, $pkg, $name, $default) = @_;
-    *{$pkg . "::$name"} = sub {
-        my ($class, $val) = @_;
-        if ($val) {
-            *{$pkg . "::$name"} = sub { return $val; }; return $val;
-        }
-        else {
-            return $default||0;
-        }
-    };
-}        
 
 sub accessor {
     my ($name, $value) = @_;
@@ -637,40 +472,33 @@ sub _debug {
 sub _class_exists {
     my $class = shift;
     
-    # i hard a hard time finding out how to go about this
-    # this is all i could think of
-    # every class should at _least_ have BEGIN, so count the keys!
-    $class = "$class\::";
-    return scalar(keys(%{$class}));
+    return Class::LOP->init($class)->class_exists();
 }
 
 sub sublist {
     my $pkg = caller(0);
-    my @subs;
-    for (keys %{$pkg . "::"}) {
-        my $sub = $_;
-        push @subs, $sub
-            unless substr($sub, -2) eq '::' or grep { $_ eq $sub } @{$Sub::Mage::Imports};
-    }
-
-    return @subs;
+    return Class::LOP->init($pkg)->list_methods();
 }
 
 =head1 IMPORT ATTRIBUTES
 
-When you C<use Sub::Mage> there are currently a couple of options you can pass to it. One is C<:5.010>. This will import the 5.010 feature.. this has nothing to do 
-with subs, but I like this module, so it's there. The other is C<:Debug>. If for some reason you want some kind of debugging going on when you override, restore, create 
-or create hook modifiers then this will enable it for you. It can get verbose, so use it only when you need to.
+=head2 :Debug
 
-    use Sub::Mage ':5.010';
+If for some reason you want some kind of debugging going on when you override, restore, create 
+or create hook modifiers, then this will enable it for you. It can get verbose, so use it only when you need to.
 
-    say "It works!";
-
-    #--
-
-    use Sub::Mage qw/:5.010 :Debug/;
+    use Sub::Mage ':Debug';
 
     create 'this_sub' => sub { }; # notifies you with [debug] that a subroutine was createed
+
+=head2 :Class
+
+Turns Sub::Mage into a minimal class builder, giving you access to special class-only methods. They are explained in the methods section. 
+
+    use Sub::Mage ':Class';
+
+    has 'x' => ();
+    chainable 'this' => ( class => 'ThisClass' );
 
 =head1 METHODS 
 

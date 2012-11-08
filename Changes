@@ -1,5 +1,10 @@
 Revision history for Sub-Mage
 
+0.030   07/11/2012
+        This is a whole new release because the internals of 
+        Sub::Mage have been replaced using Class::LOP (Lightweight Object Protocol) which is included with this distribution.
+        Please let me know if anything isn't working as it should :-)
+
 0.020   28/03/2012
         Cleaned up some old code and more importantly fixed a nasty bug in the accessors. Augment has been renamed to extends, for obvious reasons.
 
