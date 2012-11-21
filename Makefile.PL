@@ -1,4 +1,5 @@
 use inc::Module::Install;
+use 5.010;
 
 name     'Sub-Mage';
 all_from 'lib/Sub/Mage.pm';

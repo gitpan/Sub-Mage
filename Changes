@@ -1,5 +1,8 @@
 Revision history for Sub-Mage
 
+0.31    21/11/2012
+	Started using mro which was breaking tests using older versions of Perl. 	Stuck 'use 5.010' in the Makefile.PL, which hopefully should fix that?
+
 0.030   07/11/2012
         This is a whole new release because the internals of 
         Sub::Mage have been replaced using Class::LOP (Lightweight Object Protocol) which is included with this distribution.
