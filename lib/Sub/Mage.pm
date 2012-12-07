@@ -61,7 +61,7 @@ Changing a class method (Remote control), by example
 
 use Class::LOP;
 
-our $VERSION = '0.031';
+our $VERSION = '0.032';
 $Sub::Mage::Subs    = {};
 $Sub::Mage::Imports = [];
 $Sub::Mage::Classes = [];

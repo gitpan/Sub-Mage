@@ -1,5 +1,8 @@
 Revision history for Sub-Mage
 
+0.32    07/12/2012
+        Fixed a slight bug in Class::LOP when extending classes
+
 0.31    21/11/2012
 	Started using mro which was breaking tests using older versions of Perl. 	Stuck 'use 5.010' in the Makefile.PL, which hopefully should fix that?
 

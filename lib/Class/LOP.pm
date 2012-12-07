@@ -79,7 +79,7 @@ use warnings;
 use strict;
 use mro;
 
-our $VERSION = '0.001';
+our $VERSION = '0.003';
 
 sub new {
     my ($self, $class) = @_;
@@ -209,17 +209,17 @@ sub extend_class {
     my ($self, @mothers) = @_;
 
     my $class = $self->{_name};
-    #foreach my $mother (@mothers) {
-    #    # if class is unknown to us, import it (FIXME)
-    #    unless (grep { $_ eq $mother } @{$self->{'classes'}}) {
-    #        eval "use $mother";
-    #        warn "Could not extend $mother: $@"
-    #            if $@;
-    #    
-    #        $mother->import;
-    #    }
-    #    push @{$self->{'classes'}}, $class;
-    #}
+    foreach my $mother (@mothers) {
+        # if class is unknown to us, import it (FIXME)
+        unless (grep { $_ eq $mother } @{$self->{'classes'}}) {
+            eval "use $mother";
+            warn "Could not extend $mother: $@"
+                if $@;
+        
+            $mother->import;
+        }
+        push @{$self->{'classes'}}, $class;
+    }
 
     {
         no strict 'refs';
